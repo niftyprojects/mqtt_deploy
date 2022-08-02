@@ -1,0 +1,84 @@
+---
+
+ - name: Get AWS Instance IDs
+   ec2_instance_info:
+     region: "{{ aws_region }}"
+     filters:
+       "tag:Name": mqttlab
+       instance-state-name: ["running", "stopped", "stopping", "starting", "pending"]
+   register: ec2_info
+   tags:
+     - always
+
+ - name: Provisioning EC2 Instance
+   block:
+     - name: Upload public key
+       ec2_key:
+         name: "{{ key_name }}"
+         key_material: "{{ lookup('file', '~/.ssh/id_{{ key_name }}.pub') }}"
+         region: "{{ aws_region }}"
+
+     - name: Create security group
+       ec2_group:
+         name: "{{ sec_group }}"
+         description: "Security group for {{ id }}"
+         region: "{{ aws_region }}"
+         rules:
+           - proto: tcp
+             ports:
+               - 22
+             cidr_ip: 0.0.0.0/0
+             rule_desc: allow all ipv4 ssh
+           - proto: tcp
+             ports:
+               - 22
+             cidr_ipv6: ::/0
+             rule_desc: allow all ipv6 ssh
+       register: result_sec_group
+
+     - name: Create mtqqlab instance
+       ec2_instance:
+         name: mqttlab
+         instance_type: t2.micro
+         image_id: "{{ aws_ami_id }}"
+         count: 1
+         key_name: "{{ key_name }}"
+         security_group: "{{ result_sec_group.group_id }}"
+         region: "{{ aws_region }}"
+         tags:
+           Name: mqttlab
+         network:
+           assign_public_ip: yes
+         state: running
+
+   when: ec2_info.instances | count == 0
+
+ - name: Get AWS Instance IDs
+   ec2_instance_info:
+     region: "{{ aws_region }}"
+     filters:
+       "tag:Name": mqttlab
+       instance-state-name: ["running", "stopped", "stopping", "starting", "pending"]
+   register: ec2_existing_info
+
+ - name: Collect instance DNS names
+   set_fact:
+     instance_names: "{{ instance_names + [ item.public_dns_name ] }}"
+   loop: "{{ ec2_existing_info.instances }}"
+
+ - name: Wait for SSH to be available
+   wait_for:
+     host: "{{ item }}"
+     port: 22
+     delay: 3
+     connect_timeout: 60
+     sleep: 5
+     state: started
+   loop: "{{ instance_names }}"
+
+ - name: Add instances to host group
+   add_host:
+     name: "{{ item }}"
+     groups: mqttlab_hosts
+     ansible_ssh_extra_args: ' -o StrictHostKeyChecking=no '
+   loop: "{{ instance_names }}"

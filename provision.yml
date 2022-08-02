@@ -1,0 +1,23 @@
+---
+
+- name: Provision AWS Infrastructure
+  hosts: localhost
+  gather_facts: no
+  vars:
+    instance_names: []
+    new_ec2_addrs: []
+
+  tasks:
+    - name: EC2 Setup
+      include_role:
+        name: aws-create-ec2
+      tags: ec2_setup
+
+- name: Deploy MQTT utils to instances
+  hosts: mqttlab_hosts
+  remote_user: ubuntu
+  become: true
+  tasks:
+    - name: Deploy MQTT utilities
+      include_role:
+        name: deploy-mqtt-utils

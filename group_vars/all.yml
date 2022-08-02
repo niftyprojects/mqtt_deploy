@@ -1,0 +1,6 @@
+---
+aws_ami_id: ami-0b6937ac543fe96d7 # Ubuntu Server 22.04 LTS (HVM), SSD Volume Type x86-64
+aws_region: ca-central-1
+id: "mqttlab"
+sec_group: "{{ id }}-sec"
+key_name: "{{ id }}_aws"

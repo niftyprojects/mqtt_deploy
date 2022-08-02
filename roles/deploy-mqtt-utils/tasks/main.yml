@@ -1,0 +1,55 @@
+---
+
+ - name: Install system utils
+   apt:
+     name: 
+       - python3-pip
+       - docker.io
+       - daemon
+     update-cache: yes
+
+ - name: Enable and run docker
+   service:
+     name: docker
+     enabled: true
+     state: started
+
+ - name: Install MQTT utilities
+   pip:
+     name:
+       - git+https://github.com/niftyprojects/mqtt_random.git@v1.0.0
+       - git+https://github.com/niftyprojects/mqtt_stats.git@v1.0.0
+       - git+https://github.com/niftyprojects/mqtt_views.git@v1.0.0
+
+ - name: Install docker python libs
+   pip:
+     name: docker
+
+ - name: Clone mosquitto image
+   git:
+     repo: https://github.com/niftyprojects/mqtt_broker.git
+     version: v1.0.0
+     dest: /var/mqtt_broker
+   register: git_status
+
+ - name: Build mosquitto docker image
+   when: git_status.changed == true
+   community.docker.docker_image:
+     build:
+       path: /var/mqtt_broker
+     source: build
+     name: mosquitto:latest
+
+ - name: Run mqtt_broker container
+   community.docker.docker_container:
+     detach: yes
+     image: mosquitto:latest
+     name: mqtt_broker
+     ports: 1883:1883
+     state: started
+
+ - name: Run random number generator
+   shell: daemon mqtt_random
+
+ - name: Run stats calculator
+   shell: daemon mqtt_stats
